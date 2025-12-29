@@ -1,0 +1,58 @@
+name: Android CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build_and_test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout codes
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Prepare local properties
+      - name: Prepare local properties
+        run: echo "${{ secrets.LOCAL_PROPERTIES }}" > local.properties
+
+      # Prepare Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      # Setup gradle
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Grant permission for gradlew
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 6. Run Unit Tests, Lint, and Build
+      # 어디서 실패했는지를 명확하게 확인하기 위해 3개 단계로 나누어 진행
+      # - testDebugUnitTest: 순수 Kotlin 로직 테스트
+      # - lintDebug: 정적 분석
+      # - assembleDebug: 디버그 APK 빌드 성공 여부 확인
+      - name: Run unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Run lint
+        run: ./gradlew --no-daemon lintDebug
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      # 7. Upload Lint Report (결과 확인용, 선택사항)
+      - name: Upload lint report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: warn
