@@ -10,7 +10,8 @@ class Mp3TagEditor(override val supportedExtensions: Set<String> = setOf("mp3"))
         context: Context,
         uri: Uri
     ): MusicMetadata {
-
+        // TODO: 구현
+        return MusicMetadata()
     }
 
     override suspend fun saveInternal(
@@ -18,6 +19,6 @@ class Mp3TagEditor(override val supportedExtensions: Set<String> = setOf("mp3"))
         uri: Uri,
         metadata: MusicMetadata
     ) {
-
+        // TODO: 구현
     }
 }
