@@ -3,6 +3,7 @@ package com.imeanttobe.tageditor.util
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -31,11 +32,7 @@ object FileUtil {
             }
         }
         if (result == null) {
-            result = uri.path
-            val cut = result?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                result = result.substring(cut + 1)
-            }
+            result = uri.path?.substringAfterLast('/')
         }
         return result ?: "unknown_file"
     }
@@ -61,6 +58,7 @@ object FileUtil {
      * [4] Uri -> 임시 파일(File) 복사
      * 태그 라이브러리가 'File' 객체를 요구할 때 사용합니다.
      * 앱의 캐시 디렉토리에 원본과 동일한 확장자를 가진 임시 파일을 생성하고 내용을 복사합니다.
+     * 단, 파일 삭제는 이 함수를 실행하는 측에서 진행하거나, [6]번 함수로 해야 합니다.
      */
     @Throws(IOException::class)
     suspend fun copyUriToTempFile(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
@@ -74,7 +72,6 @@ object FileUtil {
 
         // 캐시 디렉토리에 빈 파일 생성
         val tempFile = File.createTempFile("tag_editor_", suffix, tempDir)
-        tempFile.deleteOnExit() // 앱 종료 시 삭제 예약
 
         // Stream을 열어 데이터 복사
         context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -93,7 +90,7 @@ object FileUtil {
     @Throws(IOException::class)
     suspend fun copyTempFileToUri(context: Context, tempFile: File, uri: Uri) = withContext(Dispatchers.IO) {
         // "wt" 모드: Write + Truncate (기존 내용을 지우고 처음부터 씀)
-        context.contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
+        context.contentResolver.openOutputStream(uri, "w")?.use { outputStream ->
             tempFile.inputStream().use { inputStream ->
                 inputStream.copyTo(outputStream)
             }
@@ -116,9 +113,10 @@ object FileUtil {
                     file.delete()
                 }
             }
+        } catch (e: SecurityException) {
+            Log.e("FileUtil", "Security exception while clearing temp files.", e)
         } catch (e: Exception) {
-            // 파일 삭제 실패는 치명적인 오류가 아니므로 로그만 남기고 앱은 계속 실행
-            e.printStackTrace()
+            Log.e("FileUtil", "Error clearing old temp files.", e)
         }
     }
 }
