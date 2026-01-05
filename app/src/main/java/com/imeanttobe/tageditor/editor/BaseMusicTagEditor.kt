@@ -17,8 +17,8 @@ abstract class BaseMusicTagEditor : MusicTagEditor {
             context.contentResolver.openFileDescriptor(uri, "rw")?.use {
                 // 블록 내에서 아무것도 안 해도, 정상적으로 열렸다면 닫히면서 통과됨
             } ?: throw FileNotFoundException("Cannot open file descriptor for $uri")
-        } catch (e: Exception) {
-            // 권한이 없거나 파일이 없으면 예외 발생
+        } catch (e: SecurityException) {
+            // 권한이 없으면 예외 발생
             throw SecurityException("Cannot access uri: $uri. Check permissions or file existence.", e)
         }
     }
