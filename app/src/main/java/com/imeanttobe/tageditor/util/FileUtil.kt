@@ -107,4 +107,26 @@ object FileUtil {
             }
         } ?: throw IOException("Cannot open file descriptor for writing: $uri")
     }
+
+    /**
+     * [6] 임시 파일 제거
+     * 혹시 앱이 비정상적으로 종료되어 임시 파일이 남았을 경우를 대비,
+     * 모든 임시 파일과 캐시 디렉토리 등을 삭제하는 함수입니다.
+     * 성능 향상을 위해 입출력 디스패처에서 비동기적으로 실행합니다.
+     */
+    suspend fun clearOldTempFiles(context: Context) = withContext(Dispatchers.IO) {
+        try {
+            val tempDir = File(context.cacheDir, TEMP_DIR_NAME)
+
+            // 폴더가 존재하고 디렉토리가 맞다면 내부 파일 삭제
+            if (tempDir.exists() && tempDir.isDirectory) {
+                tempDir.listFiles()?.forEach { file ->
+                    file.delete()
+                }
+            }
+        } catch (e: Exception) {
+            // 파일 삭제 실패는 치명적인 오류가 아니므로 로그만 남기고 앱은 계속 실행
+            e.printStackTrace()
+        }
+    }
 }
