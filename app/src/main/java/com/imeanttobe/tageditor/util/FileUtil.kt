@@ -1,0 +1,110 @@
+package com.imeanttobe.tageditor.util
+
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+
+object FileUtil {
+    // 임시 폴더명 상수
+    private const val TEMP_DIR_NAME = "saf_temp"
+
+    /**
+     * [1] 파일 이름 가져오기
+     * SAF Uri에서 표시되는 파일 이름(Display Name)을 추출합니다.
+     */
+    fun getFileName(context: Context, uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index != -1) {
+                        result = it.getString(index)
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = result.substring(cut + 1)
+            }
+        }
+        return result ?: "unknown_file"
+    }
+
+    /**
+     * [2] 파일 확장자 가져오기
+     * 파일 이름에서 확장자를 추출합니다. (소문자 변환)
+     */
+    fun getFileExtension(context: Context, uri: Uri): String {
+        val fileName = getFileName(context, uri)
+        return fileName.substringAfterLast('.', "").lowercase()
+    }
+
+    /**
+     * [3] MIME 타입 가져오기
+     * 예: "audio/mpeg"
+     */
+    fun getMimeType(context: Context, uri: Uri): String {
+        return context.contentResolver.getType(uri) ?: "application/octet-stream"
+    }
+
+    /**
+     * [4] Uri -> 임시 파일(File) 복사
+     * 태그 라이브러리가 'File' 객체를 요구할 때 사용합니다.
+     * 앱의 캐시 디렉토리에 원본과 동일한 확장자를 가진 임시 파일을 생성하고 내용을 복사합니다.
+     */
+    @Throws(IOException::class)
+    fun copyUriToTempFile(context: Context, uri: Uri): File {
+        // 임시 폴더 생성
+        val tempDir = File(context.cacheDir, TEMP_DIR_NAME)
+        if (!tempDir.exists()) tempDir.mkdirs()
+
+        val extension = getFileExtension(context, uri)
+        // 확장자가 없으면 tmp, 있으면 해당 확장자 사용 (라이브러리 인식용)
+        val suffix = if (extension.isNotEmpty()) ".$extension" else ".tmp"
+
+        // 캐시 디렉토리에 빈 파일 생성
+        val tempFile = File.createTempFile("tag_editor_", suffix, tempDir)
+        tempFile.deleteOnExit() // 앱 종료 시 삭제 예약
+
+        // Stream을 열어 데이터 복사
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            FileOutputStream(tempFile).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        } ?: throw IOException("Cannot open input stream for uri: $uri")
+
+        return tempFile
+    }
+
+    /**
+     * [5] 임시 파일(File) -> 원본 Uri 덮어쓰기
+     * 태그 라이브러리가 수정한 임시 파일을 다시 원본 위치(SAF Uri)에 저장합니다.
+     */
+    @Throws(IOException::class)
+    fun copyTempFileToUri(context: Context, tempFile: File, uri: Uri) {
+        context.contentResolver.openFileDescriptor(uri, "w")?.use { pfd ->
+            FileOutputStream(pfd.fileDescriptor).use { outputStream ->
+                tempFile.inputStream().use { inputStream ->
+                    inputStream.copyTo(outputStream)
+                    // 파일 크기가 줄어들었을 경우를 대비해 truncate 처리 (선택 사항이나 권장)
+                    try {
+                        val channel = outputStream.channel
+                        channel.truncate(channel.position())
+                    } catch (e: Exception) {
+                        // 일부 스트림에서 지원하지 않을 수 있음
+                    }
+                }
+            }
+        } ?: throw IOException("Cannot open file descriptor for writing: $uri")
+    }
+}
