@@ -63,7 +63,7 @@ object FileUtil {
      * 앱의 캐시 디렉토리에 원본과 동일한 확장자를 가진 임시 파일을 생성하고 내용을 복사합니다.
      */
     @Throws(IOException::class)
-    fun copyUriToTempFile(context: Context, uri: Uri): File {
+    suspend fun copyUriToTempFile(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
         // 임시 폴더 생성
         val tempDir = File(context.cacheDir, TEMP_DIR_NAME)
         if (!tempDir.exists()) tempDir.mkdirs()
@@ -83,7 +83,7 @@ object FileUtil {
             }
         } ?: throw IOException("Cannot open input stream for uri: $uri")
 
-        return tempFile
+        tempFile
     }
 
     /**
@@ -91,21 +91,13 @@ object FileUtil {
      * 태그 라이브러리가 수정한 임시 파일을 다시 원본 위치(SAF Uri)에 저장합니다.
      */
     @Throws(IOException::class)
-    fun copyTempFileToUri(context: Context, tempFile: File, uri: Uri) {
-        context.contentResolver.openFileDescriptor(uri, "w")?.use { pfd ->
-            FileOutputStream(pfd.fileDescriptor).use { outputStream ->
-                tempFile.inputStream().use { inputStream ->
-                    inputStream.copyTo(outputStream)
-                    // 파일 크기가 줄어들었을 경우를 대비해 truncate 처리 (선택 사항이나 권장)
-                    try {
-                        val channel = outputStream.channel
-                        channel.truncate(channel.position())
-                    } catch (e: Exception) {
-                        // 일부 스트림에서 지원하지 않을 수 있음
-                    }
-                }
+    suspend fun copyTempFileToUri(context: Context, tempFile: File, uri: Uri) = withContext(Dispatchers.IO) {
+        // "wt" 모드: Write + Truncate (기존 내용을 지우고 처음부터 씀)
+        context.contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
+            tempFile.inputStream().use { inputStream ->
+                inputStream.copyTo(outputStream)
             }
-        } ?: throw IOException("Cannot open file descriptor for writing: $uri")
+        } ?: throw IOException("Cannot open output stream for uri: $uri")
     }
 
     /**
