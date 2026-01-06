@@ -47,6 +47,15 @@ android {
         viewBinding = true
         buildConfig = true
     }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/NOTICE"
+        }
+    }
 }
 
 kotlin {
@@ -62,6 +71,13 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.dagger.hilt.android)
+
+    // Music
+    implementation(libs.net.jthink.jaudiotagger)
+
+    // Test
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 
     // Default
     implementation(libs.androidx.core.ktx)
